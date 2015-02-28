@@ -33,6 +33,7 @@ Note: the values of the source and target attributes may be initially specified 
     this.id = OscNode.nextId++;
     this.widget = widget;    
     this.edges = [];
+    this.plucked = null;
   }
 
   OscNode.FREQ_RANGE = (100).to(1000);
@@ -72,22 +73,26 @@ Note: the values of the source and target attributes may be initially specified 
   };
 
   OscNode.prototype.pluck = function(duration) {
+    if (this.plucked) return;
     duration = duration || 1000;
+    console.log('freq:', OscNode.FREQ_RANGE.at(this.x / this.widget.clientWidth));
     var pluck = T('pluck', OscNode.FREQ_RANGE.at(this.x / this.widget.clientWidth));
-    var bang = pluck.bang();
-    bang.play();
-    if (duration != Number.POSITIVE_INFINITY) {
-      setTimeout(function() {
-        bang.stop();
-      }, duration);
-    }
+    var plucked = pluck.bang();
+    plucked.play();
+    this.plucked = plucked;
+    setTimeout(function() {
+      plucked.stop();
+      this.plucked = null;
+    }.bind(this), duration);
   };
 
   OscNode.prototype.strum = function(duration) {
     this.pluck(duration);
     if (duration > 10) {
       var i = this.edges.length; while(--i >= 0) {
-        this.edges[i].strum(duration / 2);
+        if (!this.edges[i].plucked) {
+          this.edges[i].strum(duration / 2);
+        }
       }
     }
   };
@@ -104,10 +109,11 @@ Note: the values of the source and target attributes may be initially specified 
       .nodes([])
 //      .links(links)
       .size([this.clientWidth, this.clientHeight])
-//      .linkStrength(1.0)
+      .linkStrength(0.1)
       // .friction(0.9)
-      .linkDistance(2)
-      .charge(-120);
+      .linkDistance(10)
+      .gravity(0)
+      .charge(-10);
 //      .gravity(0.2)
 //      .theta(0.2)
 //      .alpha(0.1);
@@ -147,7 +153,7 @@ Note: the values of the source and target attributes may be initially specified 
       //var osc = node.sin()
       //console.log(osc.str);
       //osc.play();
-      node.strum();
+      node.strum(250);
     }
 
     function onDblClick() {
@@ -160,7 +166,7 @@ Note: the values of the source and target attributes may be initially specified 
         var target = nodes[i];
         var x = target.x - node.x,
             y = target.y - node.y;
-        if (x * x + y * y < 900 && target !== node) {
+        if (x * x + y * y < 1600 && target !== node) {
           links.push({source: node, target: target});
           node.attach(target);
           target.attach(node);

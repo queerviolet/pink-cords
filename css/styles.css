@@ -19,5 +19,6 @@ timbre-graph {
 
 .link {
   stroke: #999;
+  stroke-width: 4px;
   stroke-opacity: .6;
 }

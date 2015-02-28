@@ -27,6 +27,22 @@ Note: the values of the source and target attributes may be initially specified 
 
 */
 
+  function Cord(source, target) {
+    this.source = source;
+    this.target = target;
+    this.audioNode = T('pluck');
+    this.audioNode.play();    
+  }
+
+  Cord.FREQ_RANGE = (500).to(50);
+
+  Cord.prototype.pluck = function() {
+    var string = [this.target.x, this.target.y].sub([this.source.x, this.source.y]);
+    var freq = Cord.FREQ_RANGE.at(string.mag / 1000);
+    this.audioNode.set({freq: freq});
+    this.audioNode.bang();
+  }
+
   function OscNode(x, y, widget) {
     this.x = x;
     this.y = y;
@@ -81,14 +97,15 @@ Note: the values of the source and target attributes may be initially specified 
     plucked.play();
     this.plucked = plucked;
     setTimeout(function() {
-      plucked.stop();
+      console.log('clearing');
+      plucked.pause();
       this.plucked = null;
     }.bind(this), duration);
   };
 
   OscNode.prototype.strum = function(duration) {
     this.pluck(duration);
-    if (duration > 10) {
+    if (duration > 100) {
       var i = this.edges.length; while(--i >= 0) {
         if (!this.edges[i].plucked) {
           this.edges[i].strum(duration / 2);
@@ -109,11 +126,11 @@ Note: the values of the source and target attributes may be initially specified 
       .nodes([])
 //      .links(links)
       .size([this.clientWidth, this.clientHeight])
-      .linkStrength(0.1)
+      .linkStrength(0)
       // .friction(0.9)
       .linkDistance(10)
       .gravity(0)
-      .charge(-10);
+      .charge(0); //-10);
 //      .gravity(0.2)
 //      .theta(0.2)
 //      .alpha(0.1);
@@ -131,6 +148,7 @@ Note: the values of the source and target attributes may be initially specified 
         .enter()
           .insert('line')
           .attr("class", "link")
+          .on('mouseenter', onLinkMouseMove)
           .style("stroke-width", function(d) { return Math.sqrt(d.value); });
 
       node = node.data(nodes);
@@ -148,12 +166,17 @@ Note: the values of the source and target attributes may be initially specified 
       force.start();
     }
 
+    function onLinkMouseMove() {
+      var cord = d3.select(this).data()[0];
+      cord.pluck();
+    }
+
     function onNodeClick() {
       var node = d3.select(this).data()[0];
       //var osc = node.sin()
       //console.log(osc.str);
       //osc.play();
-      node.strum(250);
+      //node.strum(1000);
     }
 
     function onDblClick() {
@@ -167,7 +190,7 @@ Note: the values of the source and target attributes may be initially specified 
         var x = target.x - node.x,
             y = target.y - node.y;
         if (x * x + y * y < 1600 && target !== node) {
-          links.push({source: node, target: target});
+          links.push(new Cord(node, target));
           node.attach(target);
           target.attach(node);
         }

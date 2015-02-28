@@ -3,30 +3,6 @@
 var TimbreGraph = (function() {
   var Graph = Object.create(HTMLElement.prototype);
 
-/**
-# force.nodes([nodes])
-
-If nodes is specified, sets the layout's associated nodes to the specified array. If nodes is not specified, returns the current array, which defaults to the empty array. Each node has the following attributes:
-
-index - the zero-based index of the node within the nodes array.
-x - the x-coordinate of the current node position.
-y - the y-coordinate of the current node position.
-px - the x-coordinate of the previous node position.
-py - the y-coordinate of the previous node position.
-fixed - a boolean indicating whether node position is locked.
-weight - the node weight; the number of associated links.
-These attributes do not need to be set before passing the nodes to the layout; if they are not set, suitable defaults will be initialized by the layout when start is called. However, be aware that if you are storing other data on your nodes, your data attributes should not conflict with the above properties used by the layout.
-
-# force.links([links])
-
-If links is specified, sets the layout's associated links to the specified array. If links is not specified, returns the current array, which defaults to the empty array. Each link has the following attributes:
-
-source - the source node (an element in nodes).
-target - the target node (an element in nodes).
-Note: the values of the source and target attributes may be initially specified as indexes into the nodes array; these will be replaced by references after the call to start. Link objects may have additional fields that you specify; this data can be used to compute link strength and distance on a per-link basis using an accessor function.
-
-*/
-
   Graph.attachedCallback = function() {
     var self = this;
     var svg = d3.select(this).append("svg")
@@ -69,7 +45,6 @@ Note: the values of the source and target attributes may be initially specified 
         .enter().append("circle")
           .attr("class", "node")
           .attr("r", 5)
-          // .style("fill", "red")
           .call(force.drag);
 
       node.append("title")

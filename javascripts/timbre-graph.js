@@ -42,7 +42,7 @@ Note: the values of the source and target attributes may be initially specified 
 //      .linkStrength(1.0)
       // .friction(0.9)
       .linkDistance(2)
-      .charge(-120);
+      .charge(-120)
 //      .gravity(0.2)
 //      .theta(0.2)
 //      .alpha(0.1);
@@ -67,7 +67,6 @@ Note: the values of the source and target attributes may be initially specified 
         .enter().append("circle")
           .attr("class", "node")
           .attr("r", 5)
-          .style("fill", function(d) { return 'fuchsia'; })
           .call(force.drag);
 
       node.append("title")

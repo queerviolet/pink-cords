@@ -32,15 +32,35 @@ Note: the values of the source and target attributes may be initially specified 
     this.target = target;
     this.audioNode = T('pluck');
     this.audioNode.play();    
+    this.id = Cord.nextId++;
   }
 
+  Cord.nextId = 0;
   Cord.FREQ_RANGE = (500).to(50);
+
+  Cord.prototype.getDomId = function() {
+    return 'cord_' + this.id;
+  }
+
+  Cord.prototype.getDomNode = function() {
+    if (typeof this.domNode === 'undefined') {
+      this.domNode = document.getElementById(this.getDomId());
+      if (this.domNode) {
+        this.domNode.cord = this;
+      }
+    }
+    return this.domNode;
+  }
 
   Cord.prototype.pluck = function() {
     var string = [this.target.x, this.target.y].sub([this.source.x, this.source.y]);
     var freq = Cord.FREQ_RANGE.at(string.mag / 1000);
     this.audioNode.set({freq: freq});
     this.audioNode.bang();
+    console.log(this.getDomId());
+    if (this.getDomNode()) {
+      this.getDomNode().classList.add('plucked');
+    }
   }
 
   // I'm sorry ~ ashi.
@@ -144,6 +164,11 @@ Note: the values of the source and target attributes may be initially specified 
       .attr("height", this.clientHeight)
       .on('click', onDblClick);
 
+    this.addEventListener('webkitAnimationEnd', function(event) {
+      console.log(event.target);
+      event.target.classList.remove('plucked');
+    });
+
 
     var force = d3.layout.force()
       .nodes([])
@@ -172,6 +197,7 @@ Note: the values of the source and target attributes may be initially specified 
           .insert('line')
           .attr("class", "link")
           .on('mouseenter', onLinkMouseMove)
+          .attr('id', function(d) { return d.getDomId(); })
           .style("stroke-width", function(d) { return Math.sqrt(d.value); });
 
       node = node.data(nodes);

@@ -23,3 +23,18 @@ timbre-graph {
   stroke-width: 4px;
   stroke-opacity: .6;
 }
+
+.plucked {
+  -webkit-animation-name: plucked;
+  -webkit-animation-duration: 200ms;
+}
+
+@-webkit-keyframes plucked {
+  from {
+    stroke: fuchsia;
+  }
+
+  to {
+    stroke: #999;
+  }
+}

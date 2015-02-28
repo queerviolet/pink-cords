@@ -31,7 +31,7 @@ Note: the values of the source and target attributes may be initially specified 
     this.source = source;
     this.target = target;
     this.audioNode = T('pluck');
-    this.audioNode.play();    
+    this.audioNode.play();
   }
 
   Cord.FREQ_RANGE = (500).to(50);
@@ -48,12 +48,21 @@ Note: the values of the source and target attributes may be initially specified 
     return sourceOrTarget == this.source? this.target : this.source;
   }
 
-  function OscNode(x, y, widget) {
+  function OscNode(x, y, widget, color) {
     this.x = x;
     this.y = y;
     this.id = OscNode.nextId++;
-    this.widget = widget;    
+    this.widget = widget;
     this.plucked = null;
+    this.color =
+            "rgb("
+          + parseInt(point[0]/rgb_width, 10)
+          + ","
+          + parseInt(point[1]/rgb_height,10)
+          + ","
+          + parseInt(point[0]/rgb_width,10)
+          + ")"
+      };
 
     // TODO: Having both edges and cords is pretty weird and gross.
     this.edges = [];
@@ -120,7 +129,7 @@ Note: the values of the source and target attributes may be initially specified 
     var queue = [this];
     while (queue.length > 0) {
       var next = queue.shift();
-      var strum = [];      
+      var strum = [];
       var i = next.cords.length; while(--i >= 0) {
         var cord = next.cords[i];
         var other = cord.otherEndFrom(next);
@@ -236,6 +245,7 @@ Note: the values of the source and target attributes may be initially specified 
         .attr("y2", function(d) { return d.target.y; });
 
       node
+        .style("fill", )
         .attr("cx", function(d) {
 
           //d.sin.set({freq: freqRange.at(d.x / self.clientWidth)});

@@ -36,7 +36,7 @@ Note: the values of the source and target attributes may be initially specified 
     this.plucked = null;
   }
 
-  OscNode.FREQ_RANGE = (100).to(1000);
+  OscNode.FREQ_RANGE = (10).to(1000);
   OscNode.nextId = 0;
 
   OscNode.prototype.attach = function(target) {
@@ -76,7 +76,7 @@ Note: the values of the source and target attributes may be initially specified 
     if (this.plucked) return;
     duration = duration || 1000;
     console.log('freq:', OscNode.FREQ_RANGE.at(this.x / this.widget.clientWidth));
-    var pluck = T('pluck', OscNode.FREQ_RANGE.at(this.x / this.widget.clientWidth));
+    var pluck = T('pluck', {freq: OscNode.FREQ_RANGE.at(this.x / this.widget.clientWidth)});
     var plucked = pluck.bang();
     plucked.play();
     this.plucked = plucked;

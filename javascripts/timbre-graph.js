@@ -78,15 +78,28 @@ Note: the values of the source and target attributes may be initially specified 
       force.start();
     }
 
+    function getRB(point) {
+      parseInt(point/rgb_width, 10);
+      console.log(parseInt(point/rgb_width, 10))
+    }
+
     function onDblClick() {
       var point = d3.mouse(this);
       var node = {
         x: point[0],
         y: point[1],
         sin: T('sin'),
+        color: "rgb("
+          + parseInt(point[0]/rgb_width, 10)
+          + ","
+          + parseInt(point[1]/rgb_height,10)
+          + ","
+          + parseInt(point[0]/rgb_height,10)
+          + ")"
       };
       node.sin.play();
       nodes.push(node);
+      console.log(node.color);
 
       // add links to any nearby nodes
       var i = nodes.length; while (--i >= 0) {

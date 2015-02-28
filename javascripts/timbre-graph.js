@@ -43,21 +43,31 @@ Note: the values of the source and target attributes may be initially specified 
     this.audioNode.bang();
   }
 
+  // I'm sorry ~ ashi.
+  Cord.prototype.otherEndFrom = function(sourceOrTarget) {
+    return sourceOrTarget == this.source? this.target : this.source;
+  }
+
   function OscNode(x, y, widget) {
     this.x = x;
     this.y = y;
     this.id = OscNode.nextId++;
     this.widget = widget;    
-    this.edges = [];
     this.plucked = null;
+
+    // TODO: Having both edges and cords is pretty weird and gross.
+    this.edges = [];
+    this.cords = [];
   }
 
   OscNode.FREQ_RANGE = (10).to(1000);
   OscNode.nextId = 0;
 
-  OscNode.prototype.attach = function(target) {
-    if (this.edges.indexOf(target) === -1)
+  OscNode.prototype.attach = function(target, cord) {
+    if (this.edges.indexOf(target) === -1) {
       this.edges.push(target);
+    }
+    this.cords.push(cord);
   }
 
   // Return a sin generator which is the root of a tree of voltage controlled
@@ -88,31 +98,44 @@ Note: the values of the source and target attributes may be initially specified 
     return this.osc;
   };
 
-  OscNode.prototype.pluck = function(duration) {
-    if (this.plucked) return;
-    duration = duration || 1000;
-    console.log('freq:', OscNode.FREQ_RANGE.at(this.x / this.widget.clientWidth));
-    var pluck = T('pluck', {freq: OscNode.FREQ_RANGE.at(this.x / this.widget.clientWidth)});
-    var plucked = pluck.bang();
-    plucked.play();
-    this.plucked = plucked;
-    setTimeout(function() {
-      console.log('clearing');
-      plucked.pause();
-      this.plucked = null;
-    }.bind(this), duration);
-  };
+  var cues = [];
 
-  OscNode.prototype.strum = function(duration) {
-    this.pluck(duration);
-    if (duration > 100) {
-      var i = this.edges.length; while(--i >= 0) {
-        if (!this.edges[i].plucked) {
-          this.edges[i].strum(duration / 2);
+  setInterval(function() {
+    if (cues.length > 0)
+      console.log(cues);
+    var next = cues.shift();
+    if (next) {
+      if (Array.isArray(next)) {
+        var i = next.length; while(--i >= 0) {
+          next[i].pluck();
         }
+      } else {
+        next.pluck();
+      }
+    }
+  }, 250);
+
+  OscNode.prototype.strumBfs = function(duration) {
+    var visited = {};
+    var queue = [this];
+    while (queue.length > 0) {
+      var next = queue.shift();
+      var strum = [];      
+      var i = next.cords.length; while(--i >= 0) {
+        var cord = next.cords[i];
+        var other = cord.otherEndFrom(next);
+        if (!visited[other.id]) {
+          strum.push(cord);
+          queue.push(other);
+          visited[other.id] = true;
+        }
+      }
+      if (strum.length > 0) {
+        cues.push(strum);
       }
     }
   };
+
 
   Graph.attachedCallback = function() {
     var self = this;
@@ -172,7 +195,11 @@ Note: the values of the source and target attributes may be initially specified 
     }
 
     function onNodeClick() {
+      console.log('clicked');
+      d3.event.stopPropagation();
       var node = d3.select(this).data()[0];
+      node.strumBfs();
+
       //var osc = node.sin()
       //console.log(osc.str);
       //osc.play();
@@ -190,9 +217,10 @@ Note: the values of the source and target attributes may be initially specified 
         var x = target.x - node.x,
             y = target.y - node.y;
         if (x * x + y * y < 1600 && target !== node) {
-          links.push(new Cord(node, target));
-          node.attach(target);
-          target.attach(node);
+          var cord = new Cord(node, target);
+          links.push(cord);
+          node.attach(target, cord);
+          target.attach(node, cord);
         }
       }
 

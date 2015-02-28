@@ -1,4 +1,4 @@
-body{
+body {
   font-size: 2em;
   color: red;
 }
@@ -15,6 +15,7 @@ timbre-graph {
   stroke: #fff;
   stroke-width: 1.5px;
   fill: fuchsia;
+  z-index: 1000;
 }
 
 .link {

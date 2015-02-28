@@ -34,6 +34,8 @@ Note: the values of the source and target attributes may be initially specified 
       .attr("height", this.clientHeight)
       .on('dblclick', onDblClick);
 
+    var rgb_width  = self.clientWidth/255;
+    var rgb_height = self.clientHeight/255;
 
     var force = d3.layout.force()
       .nodes([])

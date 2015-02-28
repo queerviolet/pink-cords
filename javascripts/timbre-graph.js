@@ -27,12 +27,77 @@ Note: the values of the source and target attributes may be initially specified 
 
 */
 
+  function OscNode(x, y, widget) {
+    this.x = x;
+    this.y = y;
+    this.id = OscNode.nextId++;
+    this.widget = widget;    
+    this.edges = [];
+  }
+
+  OscNode.FREQ_RANGE = (100).to(1000);
+  OscNode.nextId = 0;
+
+  OscNode.prototype.attach = function(target) {
+    if (this.edges.indexOf(target) === -1)
+      this.edges.push(target);
+  }
+
+  // Return a sin generator which is the root of a tree of voltage controlled
+  // oscillators reachable from this node.
+  OscNode.prototype.sin = function(visited) {
+    visited = visited || {};
+    visited[this.id] = true;
+
+    var children = [];
+    var i = this.edges.length; while(--i >= 0) {
+      if (!visited[this.edges[i].id]) {
+        children.push(this.edges[i].sin(visited));
+      }
+    }
+    console.log(children);
+
+    if (children.length === 0) {
+      this.osc = T('sin', {freq: OscNode.FREQ_RANGE.at(this.x / this.widget.clientWidth)});
+      this.osc.str = '(sin freq:' + OscNode.FREQ_RANGE.at(this.x / this.widget.clientWidth) + ')';
+      return this.osc;
+    }
+
+    this.osc = T('sin', {freq: T.apply(undefined, ['+'].concat(children))});
+    this.osc.str = '(sin freq:(+ ' + children.map(function(child) {
+      console.log('child:', child);
+      return child.str;
+    }).join(' ') + '))';
+    return this.osc;
+  };
+
+  OscNode.prototype.pluck = function(duration) {
+    duration = duration || 1000;
+    var pluck = T('pluck', OscNode.FREQ_RANGE.at(this.x / this.widget.clientWidth));
+    var bang = pluck.bang();
+    bang.play();
+    if (duration != Number.POSITIVE_INFINITY) {
+      setTimeout(function() {
+        bang.stop();
+      }, duration);
+    }
+  };
+
+  OscNode.prototype.strum = function(duration) {
+    this.pluck(duration);
+    if (duration > 10) {
+      var i = this.edges.length; while(--i >= 0) {
+        this.edges[i].strum(duration / 2);
+      }
+    }
+  };
+
   Graph.attachedCallback = function() {
     var self = this;
     var svg = d3.select(this).append("svg")
       .attr("width", this.clientWidth)
       .attr("height", this.clientHeight)
-      .on('dblclick', onDblClick);
+      .on('click', onDblClick);
 
 
     var force = d3.layout.force()
@@ -42,7 +107,7 @@ Note: the values of the source and target attributes may be initially specified 
 //      .linkStrength(1.0)
       // .friction(0.9)
       .linkDistance(2)
-      .charge(-120)
+      .charge(-120);
 //      .gravity(0.2)
 //      .theta(0.2)
 //      .alpha(0.1);
@@ -67,6 +132,7 @@ Note: the values of the source and target attributes may be initially specified 
         .enter().append("circle")
           .attr("class", "node")
           .attr("r", 5)
+          .on('click', onNodeClick)
           .call(force.drag);
 
       node.append("title")
@@ -76,14 +142,17 @@ Note: the values of the source and target attributes may be initially specified 
       force.start();
     }
 
+    function onNodeClick() {
+      var node = d3.select(this).data()[0];
+      //var osc = node.sin()
+      //console.log(osc.str);
+      //osc.play();
+      node.strum();
+    }
+
     function onDblClick() {
       var point = d3.mouse(this);
-      var node = {
-        x: point[0],
-        y: point[1],
-        sin: T('sin'),
-      };
-      node.sin.play();
+      var node = new OscNode(point[0], point[1], self);
       nodes.push(node);
 
       // add links to any nearby nodes
@@ -91,17 +160,16 @@ Note: the values of the source and target attributes may be initially specified 
         var target = nodes[i];
         var x = target.x - node.x,
             y = target.y - node.y;
-        if (x * x + y * y < 900) {
+        if (x * x + y * y < 900 && target !== node) {
           links.push({source: node, target: target});
+          node.attach(target);
+          target.attach(node);
         }
       }
 
       startForceLayout();
     }
 
-    var MIN_FREQ = 100;
-    var MAX_FREQ = 1000;
-    var freqRange = (MIN_FREQ).to(MAX_FREQ);
 
     function tick() {
       link
@@ -112,7 +180,8 @@ Note: the values of the source and target attributes may be initially specified 
 
       node
         .attr("cx", function(d) {
-          d.sin.set({freq: freqRange.at(d.x / self.clientWidth)});
+
+          //d.sin.set({freq: freqRange.at(d.x / self.clientWidth)});
           return d.x;
         })
         .attr("cy", function(d) { return d.y; });

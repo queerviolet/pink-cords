@@ -94,7 +94,7 @@ Note: the values of the source and target attributes may be initially specified 
           + ","
           + parseInt(point[1]/rgb_height,10)
           + ","
-          + parseInt(point[0]/rgb_height,10)
+          + parseInt(point[0]/rgb_width,10)
           + ")"
       };
       node.sin.play();

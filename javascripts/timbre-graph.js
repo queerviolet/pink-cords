@@ -126,6 +126,9 @@ Note: the values of the source and target attributes may be initially specified 
         .attr("y2", function(d) { return d.target.y; });
 
       node
+        .style("fill", function(d) {
+         return d.color
+        })
         .attr("cx", function(d) {
           d.sin.set({freq: freqRange.at(d.x / self.clientWidth)});
           return d.x;

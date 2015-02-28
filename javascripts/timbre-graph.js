@@ -54,15 +54,16 @@ Note: the values of the source and target attributes may be initially specified 
     this.id = OscNode.nextId++;
     this.widget = widget;
     this.plucked = null;
+    this.rgb_width = ;
     this.color =
             "rgb("
-          + parseInt(point[0]/rgb_width, 10)
+          + parseInt(x/rgb_width, 10)
           + ","
-          + parseInt(point[1]/rgb_height,10)
+          + parseInt(y/rgb_height,10)
           + ","
-          + parseInt(point[0]/rgb_width,10)
-          + ")"
-      };
+          + parseInt(x/rgb_width,10)
+          + ")";
+
 
     // TODO: Having both edges and cords is pretty weird and gross.
     this.edges = [];

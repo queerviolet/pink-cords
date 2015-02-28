@@ -39,13 +39,13 @@ Note: the values of the source and target attributes may be initially specified 
       .nodes([])
 //      .links(links)
       .size([this.clientWidth, this.clientHeight])
-      .linkStrength(0.1)
+//      .linkStrength(1.0)
       // .friction(0.9)
-      .linkDistance(20)
-      .charge(-30)
-      .gravity(0.1)
-      .theta(0.8)
-      .alpha(0.1);
+      .linkDistance(2)
+      .charge(-120);
+//      .gravity(0.2)
+//      .theta(0.2)
+//      .alpha(0.1);
 
     var nodes = force.nodes();
     var links = force.links();
@@ -86,12 +86,22 @@ Note: the values of the source and target attributes may be initially specified 
       };
       node.sin.play();
       nodes.push(node);
-      console.log(nodes);
+
+      // add links to any nearby nodes
+      var i = nodes.length; while (--i >= 0) {
+        var target = nodes[i];
+        var x = target.x - node.x,
+            y = target.y - node.y;
+        if (x * x + y * y < 900) {
+          links.push({source: node, target: target});
+        }
+      }
+
       startForceLayout();
     }
 
-    var MIN_FREQ = 300;
-    var MAX_FREQ = 5000;
+    var MIN_FREQ = 100;
+    var MAX_FREQ = 1000;
     var freqRange = (MIN_FREQ).to(MAX_FREQ);
 
     function tick() {

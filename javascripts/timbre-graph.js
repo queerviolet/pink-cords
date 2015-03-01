@@ -139,8 +139,8 @@ Note: the values of the source and target attributes may be initially specified 
       var i = next.cords.length; while(--i >= 0) {
         var cord = next.cords[i];
         var other = cord.otherEndFrom(next);
+        strum.push(cord);
         if (!visited[other.id]) {
-          strum.push(cord);
           queue.push(other);
           visited[other.id] = true;
         }

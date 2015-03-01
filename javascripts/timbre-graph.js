@@ -196,6 +196,7 @@ Note: the values of the source and target attributes may be initially specified 
           .attr("class", "node")
           .attr("r", 5)
           .on('click', onNodeClick)
+          // .style('fill', 'red')
           .call(force.drag);
 
       node.append("title")

@@ -48,20 +48,19 @@ Note: the values of the source and target attributes may be initially specified 
     return sourceOrTarget == this.source? this.target : this.source;
   }
 
-  function OscNode(x, y, widget, color) {
+  function OscNode(x, y, widget) {
     this.x = x;
     this.y = y;
     this.id = OscNode.nextId++;
     this.widget = widget;
     this.plucked = null;
-    this.rgb_width = ;
     this.color =
             "rgb("
-          + parseInt(x/rgb_width, 10)
+          + parseInt(x/this.rgb_width, 10)
           + ","
-          + parseInt(y/rgb_height,10)
+          + parseInt(y/this.rgb_height,10)
           + ","
-          + parseInt(x/rgb_width,10)
+          + parseInt(x/this.rgb_width,10)
           + ")";
 
 
@@ -154,6 +153,9 @@ Note: the values of the source and target attributes may be initially specified 
       .attr("height", this.clientHeight)
       .on('click', onDblClick);
 
+    var rgb_width = self.clientWidth/255;
+    var rgb_height = self.clientHeight/255;
+
 
     var force = d3.layout.force()
       .nodes([])
@@ -177,12 +179,24 @@ Note: the values of the source and target attributes may be initially specified 
 
     function startForceLayout() {
       link = link.data(links);
+      console.log(link);
       link
         .enter()
           .insert('line')
           .attr("class", "link")
           .on('mouseenter', onLinkMouseMove)
-          .style("stroke-width", function(d) { return Math.sqrt(d.value); });
+          .style('stroke', function(d){
+              return "rgb("
+                + parseInt(d.source.x/rgb_width, 10)
+                +","
+                + parseInt(d.source.y/rgb_height, 10)
+                +","
+                + parseInt(d.source.x/rgb_width, 10)
+                +")"
+          })
+          .style("stroke-width", function(d) {
+            return Math.sqrt(d.value);
+            });
 
       node = node.data(nodes);
       node
@@ -209,11 +223,6 @@ Note: the values of the source and target attributes may be initially specified 
       d3.event.stopPropagation();
       var node = d3.select(this).data()[0];
       node.strumBfs();
-
-      //var osc = node.sin()
-      //console.log(osc.str);
-      //osc.play();
-      //node.strum(1000);
     }
 
     function onDblClick() {

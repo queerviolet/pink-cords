@@ -1,136 +1,118 @@
 "use strict";
 
-var TimbreGraph = (function() {
-  var Graph = Object.create(HTMLElement.prototype);
-
-/**
-# force.nodes([nodes])
-
-If nodes is specified, sets the layout's associated nodes to the specified array. If nodes is not specified, returns the current array, which defaults to the empty array. Each node has the following attributes:
-
-index - the zero-based index of the node within the nodes array.
-x - the x-coordinate of the current node position.
-y - the y-coordinate of the current node position.
-px - the x-coordinate of the previous node position.
-py - the y-coordinate of the previous node position.
-fixed - a boolean indicating whether node position is locked.
-weight - the node weight; the number of associated links.
-These attributes do not need to be set before passing the nodes to the layout; if they are not set, suitable defaults will be initialized by the layout when start is called. However, be aware that if you are storing other data on your nodes, your data attributes should not conflict with the above properties used by the layout.
-
-# force.links([links])
-
-If links is specified, sets the layout's associated links to the specified array. If links is not specified, returns the current array, which defaults to the empty array. Each link has the following attributes:
-
-source - the source node (an element in nodes).
-target - the target node (an element in nodes).
-Note: the values of the source and target attributes may be initially specified as indexes into the nodes array; these will be replaced by references after the call to start. Link objects may have additional fields that you specify; this data can be used to compute link strength and distance on a per-link basis using an accessor function.
-
-*/
-
+var PinkCords = (function() {
   function Cord(source, target) {
     this.source = source;
     this.target = target;
     this.audioNode = T('pluck');
     this.audioNode.play();    
     this.id = Cord.nextId++;
+    Cord.all[this.id] = this;
+    this.lastPluck = Number.MIN_SAFE_INTEGER;
   }
 
   Cord.nextId = 0;
+  Cord.all = [];
   Cord.FREQ_RANGE = (500).to(50);
 
-  Cord.prototype.getDomId = function() {
-    return 'cord_' + this.id;
-  }
-
-  Cord.prototype.getDomNode = function() {
-    if (typeof this.domNode === 'undefined') {
-      this.domNode = document.getElementById(this.getDomId());
-      if (this.domNode) {
-        this.domNode.cord = this;
-      }
-    }
-    return this.domNode;
-  }
-
   Cord.prototype.pluck = function() {
-    var string = [this.target.x, this.target.y].sub([this.source.x, this.source.y]);
+    var now = window.performance.now();
+    if (this.lastPluck > now - 500) return;
+    this.lastPluck = now;
+    var string = this.target.pos.sub(this.source.pos);
     var freq = Cord.FREQ_RANGE.at(string.mag / 1000);
     this.audioNode.set({freq: freq});
     this.audioNode.bang();
-    if (this.getDomNode()) {
-      this.getDomNode().classList.add('plucked');
-    }
   }
 
-  // I'm sorry ~ ashi.
+  // This is ugly. I'm sorry ~ ashi.
   Cord.prototype.otherEndFrom = function(sourceOrTarget) {
     return sourceOrTarget == this.source? this.target : this.source;
   }
 
-  function OscNode(x, y, widget) {
-    this.x = x;
-    this.y = y;
-    this.id = OscNode.nextId++;
-    this.widget = widget;    
-    this.plucked = null;
+  Cord.range0x00To0xFF = (0x00).to(0xff);
+  Cord.pluckDuration = 100;
+  Cord.resonantDuration = 10000;
+  Cord.totalDuration = Cord.pluckDuration + Cord.resonantDuration;
 
-    // TODO: Having both edges and cords is pretty weird and gross.
-    this.edges = [];
-    this.cords = [];
-  }
-
-  OscNode.FREQ_RANGE = (10).to(1000);
-  OscNode.nextId = 0;
-
-  OscNode.prototype.attach = function(target, cord) {
-    if (this.edges.indexOf(target) === -1) {
-      this.edges.push(target);
+  Cord.prototype.draw = function(ctx, ts) {
+    ctx.lineWidth = 2;
+    if (this.audioNode._.buffer) {
+      var i = Math.floor(Math.random() * this.audioNode._.buffer.length);
+      if (i === this.audioNode._.buffer.length) { --i; }
+      var t = this.audioNode._.buffer[i];
+      var c = 0xff0000 | (Cord.range0x00To0xFF.at(t) << 8) | 0xff;
+    } else {
+      c = 0x999999;
     }
-    this.cords.push(cord);
-  }
 
-  // Return a sin generator which is the root of a tree of voltage controlled
-  // oscillators reachable from this node.
-  OscNode.prototype.sin = function(visited) {
-    visited = visited || {};
-    visited[this.id] = true;
-
-    var children = [];
-    var i = this.edges.length; while(--i >= 0) {
-      if (!visited[this.edges[i].id]) {
-        children.push(this.edges[i].sin(visited));
+    ctx.strokeStyle = ci24ToStr(c);
+/*    if (this.lastPluck < ts - Cord.totalDuration) {
+      ctx.strokeStyle = '#999';
+    } else {
+      if (this.lastPluck < ts - Cord.resonantDuration) {
+        var t = (ts - this.lastPluck) / Cord.resonantDuration;
+        ctx.strokeStyle = ci24ToStr(Cord.resonantGradient.at(t));
+      } else {
+        var t = (ts - this.lastPluck) / Cord.pluckDuration;
+        ctx.strokeStyle = 
       }
-    }
-
-    if (children.length === 0) {
-      this.osc = T('sin', {freq: OscNode.FREQ_RANGE.at(this.x / this.widget.clientWidth)});
-      this.osc.str = '(sin freq:' + OscNode.FREQ_RANGE.at(this.x / this.widget.clientWidth) + ')';
-      return this.osc;
-    }
-
-    this.osc = T('sin', {freq: T.apply(undefined, ['+'].concat(children))});
-    this.osc.str = '(sin freq:(+ ' + children.map(function(child) {
-      return child.str;
-    }).join(' ') + '))';
-    return this.osc;
+    }*/
+    ctx.beginPath(); 
+    ctx.moveTo(this.source.pos.x, this.source.pos.y);
+    ctx.lineTo(this.target.pos.x, this.target.pos.y);
+    ctx.stroke();    
   };
 
-  var cues = [];
+  Cord.prototype.drawSelMask = function(gun, ts) {
+    var ctx = gun.ctx;
+    ctx.lineWidth = 4;    
+    ctx.strokeStyle = gun.getColor(this).str;
+    ctx.beginPath(); 
+    ctx.moveTo(this.source.pos.x, this.source.pos.y);
+    ctx.lineTo(this.target.pos.x, this.target.pos.y);
+    ctx.stroke();    
+  };
 
-  setInterval(function() {
-    var next = cues.shift();
-    if (next) {
-      if (Array.isArray(next)) {
-        var i = next.length; while(--i >= 0) {
-          next[i].pluck();
-        }
-      } else {
-        next.pluck();
-      }
-    }
-  }, 250);
+  Cord.prototype.toString = function() { return 'Cord_' + this.id; }
 
-  OscNode.prototype.strumBfs = function(duration) {
+  function Anchor(pos) {
+    this.pos = pos;
+    this.cords = [];
+    this.id = Anchor.nextId++;    
+  }
+
+  Anchor.nextId = 0;
+
+  Anchor.prototype.attach = function(cord) {
+    this.cords.push(cord);
+  };
+
+  Anchor.prototype.draw = function(ctx, ts) {
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#fff';
+    ctx.fillStyle = '#ff00ff';
+    ctx.beginPath();
+    ctx.arc(this.pos.x, this.pos.y, 5, 0, 2 * Math.PI, false);
+    ctx.fill();
+    ctx.stroke();
+  };
+
+  Anchor.prototype.drawSelMask = function(gun, ts) {
+    var ctx = gun.ctx;    
+    ctx.lineWidth = 1;
+    var color = gun.getColor(this);
+    ctx.strokeStyle = color.str;
+    ctx.fillStyle = color.str;
+    ctx.beginPath();
+    ctx.arc(this.pos.x, this.pos.y, 5, 0, 2 * Math.PI, false);
+    ctx.fill();
+    ctx.stroke();
+  };
+
+  Anchor.prototype.toString = function() { return 'Anchor_' + this.id; };
+
+  Anchor.prototype.strumBfs = function(duration) {
     var visited = {};
     var queue = [this];
     while (queue.length > 0) {
@@ -151,116 +133,230 @@ Note: the values of the source and target attributes may be initially specified 
     }
   };
 
+  var cues = [];
 
-  Graph.attachedCallback = function() {
-    var self = this;
-    var svg = d3.select(this).append("svg")
-      .attr("width", this.clientWidth)
-      .attr("height", this.clientHeight)
-      .style('position', 'absolute')
-      .style('top', 0)
-      .style('left', 0)
-      .on('click', onClick);
-
-
-    this.addEventListener('webkitAnimationEnd', function(event) {
-      event.target.classList.remove('plucked');
-    });
-
-
-    var force = d3.layout.force()
-      .nodes([])
-//      .links(links)
-      .size([this.clientWidth, this.clientHeight])
-      .linkStrength(0)
-      // .friction(0.9)
-      .linkDistance(10)
-      .gravity(0)
-      .charge(0); //-10);
-//      .gravity(0.2)
-//      .theta(0.2)
-//      .alpha(0.1);
-
-    var nodes = force.nodes();
-    var links = force.links();
-    var link = svg.selectAll('.link');
-    var node = svg.selectAll('.node');
-
-    startForceLayout();
-
-    function startForceLayout() {
-      link = link.data(links);
-      link
-        .enter()
-          .insert('line', ':first-child')        
-          .attr("class", "link")
-          .on('mouseenter', onLinkMouseMove)
-          .attr('id', function(d) { return d.getDomId(); })
-          .style("stroke-width", function(d) { return Math.sqrt(d.value); });
-
-      node = node.data(nodes);
-      node
-        .enter()
-          .append('circle')        
-          .attr("class", "node")
-          .attr("r", 5)
-          .on('click', onNodeClick)
-          .on('dblclick', onNodeDblClick)
-          .call(force.drag);
-
-      force.on("tick", tick);
-      force.start();
-    }
-
-    function onLinkMouseMove() {
-      var cord = d3.select(this).data()[0];
-      cord.pluck();
-    }
-
-    function onNodeClick() {
-      d3.event.stopPropagation();
-    }
-
-    function onNodeDblClick() {
-      d3.event.stopPropagation();
-      var node = d3.select(this).data()[0];
-      node.strumBfs();
-    }
-
-    function onClick() {
-      var point = d3.mouse(this);
-      var node = new OscNode(point[0], point[1], self);
-      nodes.push(node);
-
-      // add links to any nearby nodes
-      var i = nodes.length; while (--i >= 0) {
-        var target = nodes[i];
-        var x = target.x - node.x,
-            y = target.y - node.y;
-        if (x * x + y * y < 1600 && target !== node) {
-          var cord = new Cord(node, target);
-          links.push(cord);
-          node.attach(target, cord);
-          target.attach(node, cord);
+  setInterval(function() {
+    var next = cues.shift();
+    if (next) {
+      if (Array.isArray(next)) {
+        var i = next.length; while(--i >= 0) {
+          next[i].pluck();
         }
+      } else {
+        next.pluck();
       }
-
-      startForceLayout();
     }
+  }, 250);
 
-
-    function tick() {
-      link
-        .attr("x1", function(d) { return d.source.x; })
-        .attr("y1", function(d) { return d.source.y; })
-        .attr("x2", function(d) { return d.target.x; })
-        .attr("y2", function(d) { return d.target.y; });
-
-      node
-        .attr("cx", function(d) { return d.x; })
-        .attr("cy", function(d) { return d.y; });
-    }
+  // Like a Nintendo lightgun, the Lightgun does hit detection by checking
+  // the color of a pixel on an offscreen canvas.
+  function Lightgun() {
+    this.canvas = document.createElement('canvas');
+    this.canvas.style.position = 'absolute';
+    this.canvas.style.top = 0; this.canvas.style.left = 0;
+    this.ctx = this.canvas.getContext('2d');
+    this.ctx.imageSmoothingEnabled = false;
+    this.nextColor = 0x1;
+    this.keyToColor = {};
+    this.colorToObject = [];
   }
 
-  return document.registerElement('timbre-graph', {prototype: Graph});
+  Lightgun.prototype.objectsIn = function(x, y, w, h) {
+    var img = this.ctx.getImageData(x, y, w, h);
+    var colors = {};
+    var i = w * h; while(--i >= 0) {
+      if (img.data[4 * i + 3] > 0x0) {
+        var c = img.data[4 * i] | (img.data[4 * i + 1] << 8) | (img.data[4 * i + 2] << 16);
+        colors[c] = true;        
+      }
+    }
+    var objs = [];
+    for (c in colors) {
+      if (c in this.colorToObject) {
+        objs.push(this.colorToObject[c]);
+      }
+    }
+    return objs;
+  };
+
+  function ci24ToStr(n) {
+    return 'rgb(' + (n & 0xFF) + ',' +
+                   ((n >> 8) & 0xFF) + ',' +
+                   ((n >> 16) & 0xFF) + ')';
+  };
+
+  Lightgun.prototype.setSize = function(width, height) {
+    if (this.canvas.width !== width) this.canvas.width = width;
+    if (this.canvas.height !== height) this.canvas.height = height;
+  };
+
+  Lightgun.prototype.clear = function() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+  };
+
+  Lightgun.prototype.getColor = function(obj) {
+    var key = obj.toString();
+    if (key in this.keyToColor) {
+      return this.keyToColor[key];
+    }
+
+    var color = this.nextColor;
+    this.nextColor += 10;
+    this.keyToColor[key] = {color: color, str: ci24ToStr(color)};
+    this.colorToObject[color] = obj;
+    return color;
+  };
+
+  var Graph = Object.create(HTMLElement.prototype);
+
+  Graph.createdCallback = function() {
+    var root = this.createShadowRoot();
+    this.root = root;
+
+    this.canvas = document.createElement('canvas');
+    root.appendChild(this.canvas);
+    this.ctx = this.canvas.getContext('2d');
+
+    this.gun = new Lightgun();
+    // root.appendChild(this.gun.canvas);
+
+    this.anchors = [];
+    this.cords = [];
+
+    this.strumBoxes = [];
+    this.dragging = null;
+    this.running = false;
+
+    // Bound instance methods
+    this.animFrame = this.animFrame.bind(this);
+    this.onClick = this.onClick.bind(this);
+    this.onDblClick = this.onDblClick.bind(this);
+    this.onMouseMove = this.onMouseMove.bind(this);
+    this.onMouseDown = this.onMouseDown.bind(this);
+    this.onMouseUp = this.onMouseUp.bind(this);
+  };
+
+  Graph.attachedCallback = function() {
+    this.running = true;
+    window.requestAnimationFrame(this.animFrame);
+
+    this.addEventListener('click', this.onClick);
+    this.addEventListener('dblclick', this.onDblClick);
+    this.addEventListener('mousemove', this.onMouseMove);
+    this.addEventListener('mousedown', this.onMouseDown);
+    this.addEventListener('mouseup', this.onMouseUp);
+  };
+
+  Graph.detachedCallback = function() {
+    this.running = false;
+    this.removeEventListener('click', this.onClick);
+    this.removeEventListener('dblclick', this.onDblClick);
+    this.removeEventListener('mousemove', this.onMouseMove);
+    this.removeEventListener('mousedown', this.onMouseDown);
+    this.removeEventListener('mouseup', this.onMouseUp);    
+  };
+
+  Graph.findAnchorUnderMouse = function(event) {
+    var mouse = [event.offsetX, event.offsetY];
+    var i = this.anchors.length; while (--i >= 0) {
+      if (this.anchors[i].pos.sub(mouse).magSquared <= 25) {
+        return this.anchors[i];
+      }
+    }    
+  };
+
+  Graph.onClick = function(event) {
+    if (this.findAnchorUnderMouse(event)) { return; }
+
+    var pos = [event.offsetX, event.offsetY];
+    var anchor = new Anchor(pos);
+
+    var i = this.anchors.length; while (--i >= 0) {
+      var target = this.anchors[i];
+      if (target.pos.sub(pos).magSquared <= 4000) {
+        var cord = new Cord(anchor, target);
+        anchor.attach(cord);
+        target.attach(cord);
+        this.cords.push(cord);
+      }
+    }
+
+    this.anchors.push(anchor);
+  };
+
+  Graph.onDblClick = function(event) {
+    var anchor = this.findAnchorUnderMouse(event);
+    if (anchor) {
+      anchor.strumBfs();
+    }
+  };
+
+  Graph.onMouseMove = function(event) {
+    if (this.dragging) {
+      this.dragging.pos = [event.offsetX, event.offsetY];
+    } else {
+      var x1 = event.offsetX, y1 = event.offsetY,
+        x2 = x1 - event.movementX, y2 = y1 - event.movementY,
+        xMin = Math.min(x1, x2), yMin = Math.min(y1, y2),
+        xMax = Math.max(x1, x2), yMax = Math.max(y1, y2),
+        w = Math.max(3, xMax - xMin), h = Math.max(3, yMax - yMin);
+
+      this.strumBoxes.push([xMin, yMin, w, h]);
+    }
+  };
+
+  Graph.onMouseUp = function(event) {
+    this.dragging = null;
+  };
+
+  Graph.onMouseDown = function(event) {
+    this.dragging = this.findAnchorUnderMouse(event);
+  };
+
+  Graph.animFrame = function(ts) {
+    this.fitCanvas();
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.gun.clear();
+
+    var i = this.cords.length; while (--i >= 0) {
+      this.cords[i].draw(this.ctx, ts);
+      this.cords[i].drawSelMask(this.gun, ts);
+    }
+
+    i = this.anchors.length; while (--i >= 0) {
+      this.anchors[i].draw(this.ctx, ts);
+    }
+
+    var toPluck = {};
+    while (this.strumBoxes.length > 0) {
+      var box = this.strumBoxes.shift();
+      this.fillStyle = 'fuchsia';
+      this.ctx.fillRect.apply(this.ctx, box);
+      var hits = this.gun.objectsIn.apply(this.gun, box);
+      var i = hits.length; while (--i >= 0) {
+        toPluck[hits[i].id] = true;
+      }
+    }
+    for (var cordId in toPluck) {
+      Cord.all[cordId].pluck();
+    }
+
+    if (this.running) {
+      window.requestAnimationFrame(this.animFrame);
+    }
+  };
+
+  Graph.fitCanvas = function() {
+    if (this.canvas.width !== this.clientWidth) {
+      this.canvas.width = this.clientWidth;
+    }
+    if (this.canvas.height !== this.clientHeight) {
+      this.canvas.height = this.clientHeight;
+    }
+    this.gun.setSize(this.clientWidth, this.clientHeight);
+  };
+
+  return {
+    Graph: document.registerElement('pink-cords', {prototype: Graph}),
+  }
 })();

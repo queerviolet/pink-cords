@@ -33,9 +33,11 @@ Note: the values of the source and target attributes may be initially specified 
     this.audioNode = T('pluck');
     this.audioNode.play();    
     this.id = Cord.nextId++;
+    Cord.cords[this.getDomId()] = this;
   }
 
   Cord.nextId = 0;
+  Cord.cords = {};
   Cord.FREQ_RANGE = (500).to(50);
 
   Cord.prototype.getDomId = function() {
@@ -77,10 +79,28 @@ Note: the values of the source and target attributes may be initially specified 
     // TODO: Having both edges and cords is pretty weird and gross.
     this.edges = [];
     this.cords = [];
+
+    OscNode.oscNodes[this.getDomId()] = this;
   }
+
+  OscNode.prototype.getDomId = function() {
+    return 'oscNode_' + this.id;
+  }
+
+  OscNode.prototype.getDomNode = function() {
+    if (typeof this.domNode === 'undefined') {
+      this.domNode = document.getElementById(this.getDomId());
+      if (this.domNode) {
+        this.domNode.oscNode = this;
+      }
+    }
+    return this.domNode;
+  }
+
 
   OscNode.FREQ_RANGE = (10).to(1000);
   OscNode.nextId = 0;
+  OscNode.oscNodes = {};
 
   OscNode.prototype.attach = function(target, cord) {
     if (this.edges.indexOf(target) === -1) {
@@ -154,12 +174,32 @@ Note: the values of the source and target attributes may be initially specified 
 
   Graph.attachedCallback = function() {
     var self = this;
-    var svg = d3.select(this).append("svg")
+    var svgNode = this.querySelector('svg') || document.createElement('svg');
+    if (!this.contains(svgNode)) {
+      this.appendChild(svgNode);
+    }
+
+    var nodeData = [];
+    var nodes = svgNode.querySelectorAll('circle');
+    var i = nodes.length; while(--i >= 0) {
+      nodeData.push(new OscNode(nodes[i].cx, nodes[i].cy, self));
+    }
+
+    var lineData = [];
+    var lines = svgNode.querySelectorAll('line');
+    var i = lines.length; while(--i >= 0) {
+      lineData.push(new Cord(OscNode.oscNodes[lines[i].dataset.source],
+        OscNode.oscNodes[lines[i].dataset.target]));
+    }
+
+    var svg = d3.select(svgNode)
       .attr("width", this.clientWidth)
       .attr("height", this.clientHeight)
       .style('position', 'absolute')
       .style('top', 0)
       .style('left', 0)
+      .style('width', this.clientWidth + 'px')
+      .style('height', this.clientHeight + 'px')
       .on('click', onClick);
 
 
@@ -169,7 +209,8 @@ Note: the values of the source and target attributes may be initially specified 
 
 
     var force = d3.layout.force()
-      .nodes([])
+      .nodes(nodeData)
+      .links(lineData)
 //      .links(links)
       .size([this.clientWidth, this.clientHeight])
       .linkStrength(0)
@@ -188,14 +229,26 @@ Note: the values of the source and target attributes may be initially specified 
 
     startForceLayout();
 
+    console.log(svgNode);
+    svgNode.addEventListener('mouseover', onMouseOver);
+    function onMouseOver(event) {
+      console.log(event.target.id);
+      var id = event.target.id;
+      var cord = Cord.cords[id];      
+      if (cord) {
+        console.log(cord);
+      }
+    }
+
     function startForceLayout() {
       link = link.data(links);
       link
         .enter()
           .insert('line', ':first-child')        
           .attr("class", "link")
-          .on('mouseenter', onLinkMouseMove)
           .attr('id', function(d) { return d.getDomId(); })
+          .attr('data-source', function(d) { return d.source.getDomId(); })
+          .attr('data-target', function(d) { return d.target.getDomId(); })
           .style("stroke-width", function(d) { return Math.sqrt(d.value); });
 
       node = node.data(nodes);
@@ -204,6 +257,7 @@ Note: the values of the source and target attributes may be initially specified 
           .append('circle')        
           .attr("class", "node")
           .attr("r", 5)
+          .attr('id', function(d) { return d.getDomId(); })          
           .on('click', onNodeClick)
           .on('dblclick', onNodeDblClick)
           .call(force.drag);

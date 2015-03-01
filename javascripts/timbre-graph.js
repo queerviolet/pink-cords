@@ -57,7 +57,6 @@ Note: the values of the source and target attributes may be initially specified 
     var freq = Cord.FREQ_RANGE.at(string.mag / 1000);
     this.audioNode.set({freq: freq});
     this.audioNode.bang();
-    console.log(this.getDomId());
     if (this.getDomNode()) {
       this.getDomNode().classList.add('plucked');
     }
@@ -102,7 +101,6 @@ Note: the values of the source and target attributes may be initially specified 
         children.push(this.edges[i].sin(visited));
       }
     }
-    console.log(children);
 
     if (children.length === 0) {
       this.osc = T('sin', {freq: OscNode.FREQ_RANGE.at(this.x / this.widget.clientWidth)});
@@ -112,7 +110,6 @@ Note: the values of the source and target attributes may be initially specified 
 
     this.osc = T('sin', {freq: T.apply(undefined, ['+'].concat(children))});
     this.osc.str = '(sin freq:(+ ' + children.map(function(child) {
-      console.log('child:', child);
       return child.str;
     }).join(' ') + '))';
     return this.osc;
@@ -121,8 +118,6 @@ Note: the values of the source and target attributes may be initially specified 
   var cues = [];
 
   setInterval(function() {
-    if (cues.length > 0)
-      console.log(cues);
     var next = cues.shift();
     if (next) {
       if (Array.isArray(next)) {
@@ -162,10 +157,13 @@ Note: the values of the source and target attributes may be initially specified 
     var svg = d3.select(this).append("svg")
       .attr("width", this.clientWidth)
       .attr("height", this.clientHeight)
-      .on('click', onDblClick);
+      .style('position', 'absolute')
+      .style('top', 0)
+      .style('left', 0)
+      .on('click', onClick);
+
 
     this.addEventListener('webkitAnimationEnd', function(event) {
-      console.log(event.target);
       event.target.classList.remove('plucked');
     });
 
@@ -194,7 +192,7 @@ Note: the values of the source and target attributes may be initially specified 
       link = link.data(links);
       link
         .enter()
-          .insert('line')
+          .insert('line', ':first-child')        
           .attr("class", "link")
           .on('mouseenter', onLinkMouseMove)
           .attr('id', function(d) { return d.getDomId(); })
@@ -202,14 +200,13 @@ Note: the values of the source and target attributes may be initially specified 
 
       node = node.data(nodes);
       node
-        .enter().append("circle")
+        .enter()
+          .append('circle')        
           .attr("class", "node")
           .attr("r", 5)
           .on('click', onNodeClick)
+          .on('dblclick', onNodeDblClick)
           .call(force.drag);
-
-      node.append("title")
-        .text(function(d) { return d.name; });
 
       force.on("tick", tick);
       force.start();
@@ -221,18 +218,16 @@ Note: the values of the source and target attributes may be initially specified 
     }
 
     function onNodeClick() {
-      console.log('clicked');
+      d3.event.stopPropagation();
+    }
+
+    function onNodeDblClick() {
       d3.event.stopPropagation();
       var node = d3.select(this).data()[0];
       node.strumBfs();
-
-      //var osc = node.sin()
-      //console.log(osc.str);
-      //osc.play();
-      //node.strum(1000);
     }
 
-    function onDblClick() {
+    function onClick() {
       var point = d3.mouse(this);
       var node = new OscNode(point[0], point[1], self);
       nodes.push(node);

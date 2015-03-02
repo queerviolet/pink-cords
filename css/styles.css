@@ -1,6 +1,8 @@
 body {
-  font-size: 2em;
-  color: red;
+  font-size: 1.3em;
+  font-family: 'Open Sans', sans-serif;
+  color: #fff;
+  background: url('../images/stardust.png')
 }
 
 pink-cords {
@@ -10,6 +12,9 @@ pink-cords {
   top: 0; left: 0;
 }
 
+#title{
+  text-align: center;
+}
 
 .node {
   stroke: #fff;

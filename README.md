@@ -3,7 +3,7 @@
 ## The Project
 ![](thumbnail.png)
 
-algoMusic is a single page app built with JavaScript, D3.js, and Timber.js! Click [algoMusic](https://yamikamisama.github.io/algoMusic) to play! 
+algoMusic is a single page app built with JavaScript, D3.js, and Timber.js! Click [algoMusic](https://yamikamisama.github.io/algo_music) to play! 
 * A single click on the page will place a node
 * If you add nodes nearby eachother they will connect.
 * Hover over the line connecting the two to pluck the note

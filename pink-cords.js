@@ -4,6 +4,8 @@ var PinkCords = (function() {
   function Cord(source, target) {
     this.source = source;
     this.target = target;
+    source.attach(this);
+    target.attach(this);
     this.audioNode = T('pluck');
     this.audioNode.play();    
     this.id = Cord.nextId++;
@@ -30,7 +32,7 @@ var PinkCords = (function() {
     return sourceOrTarget == this.source? this.target : this.source;
   }
 
-  Cord.range0x00To0xFF = (0x00).to(0xff);
+  Cord.range0x00To0xFF = (0xFF).to(0x00).across(-1, 1);
   Cord.pluckDuration = 100;
   Cord.resonantDuration = 10000;
   Cord.totalDuration = Cord.pluckDuration + Cord.resonantDuration;
@@ -38,30 +40,27 @@ var PinkCords = (function() {
   Cord.prototype.draw = function(ctx, ts) {
     ctx.lineWidth = 2;
     if (this.audioNode._.buffer) {
-      var i = Math.floor(Math.random() * this.audioNode._.buffer.length);
-      if (i === this.audioNode._.buffer.length) { --i; }
-      var t = this.audioNode._.buffer[i];
-      var c = 0xff0000 | (Cord.range0x00To0xFF.at(t) << 8) | 0xff;
-    } else {
-      c = 0x999999;
-    }
-
-    ctx.strokeStyle = ci24ToStr(c);
-/*    if (this.lastPluck < ts - Cord.totalDuration) {
-      ctx.strokeStyle = '#999';
-    } else {
-      if (this.lastPluck < ts - Cord.resonantDuration) {
-        var t = (ts - this.lastPluck) / Cord.resonantDuration;
-        ctx.strokeStyle = ci24ToStr(Cord.resonantGradient.at(t));
-      } else {
-        var t = (ts - this.lastPluck) / Cord.pluckDuration;
-        ctx.strokeStyle = 
+      var lin = this.source.pos.to(this.target.pos);
+      var norm = lin.range.rot2d(Math.PI / 2.0).unit;
+      var buf = this.audioNode._.buffer;
+      var len = buf.length;
+      var point = lin.at(1.0);
+      var i = len; while (--i >= 0) {
+        var t = this.audioNode._.buffer[i];        
+        ctx.strokeStyle = ci24ToStr(0xff0000 | (Cord.range0x00To0xFF.at(t) << 8) | 0xff);
+        ctx.beginPath();
+        ctx.moveTo.apply(ctx, point);
+        point = lin.at(i / len).add(norm.dotMul(t * 10.0));
+        ctx.lineTo.apply(ctx, point);
+        ctx.stroke();
       }
-    }*/
-    ctx.beginPath(); 
-    ctx.moveTo(this.source.pos.x, this.source.pos.y);
-    ctx.lineTo(this.target.pos.x, this.target.pos.y);
-    ctx.stroke();    
+    } else {
+      ctx.strokeStyle = '#999';
+      ctx.beginPath(); 
+      ctx.moveTo(this.source.pos.x, this.source.pos.y);
+      ctx.lineTo(this.target.pos.x, this.target.pos.y);
+      ctx.stroke();
+    }
   };
 
   Cord.prototype.drawSelMask = function(gun, ts) {
@@ -256,8 +255,11 @@ var PinkCords = (function() {
     this.removeEventListener('mouseup', this.onMouseUp);    
   };
 
-  Graph.findAnchorUnderMouse = function(event) {
-    var mouse = [event.offsetX, event.offsetY];
+  function mousePos(event) {
+    return [event.offsetX, event.offsetY];
+  }
+
+  Graph.findAnchorAt = function(mouse) {
     var i = this.anchors.length; while (--i >= 0) {
       if (this.anchors[i].pos.sub(mouse).magSquared <= 25) {
         return this.anchors[i];
@@ -266,18 +268,15 @@ var PinkCords = (function() {
   };
 
   Graph.onClick = function(event) {
-    if (this.findAnchorUnderMouse(event)) { return; }
+    var pos = mousePos(event);
+    if (this.findAnchorAt(pos)) { return; }
 
-    var pos = [event.offsetX, event.offsetY];
     var anchor = new Anchor(pos);
 
     var i = this.anchors.length; while (--i >= 0) {
       var target = this.anchors[i];
       if (target.pos.sub(pos).magSquared <= 4000) {
-        var cord = new Cord(anchor, target);
-        anchor.attach(cord);
-        target.attach(cord);
-        this.cords.push(cord);
+        this.cords.push(new Cord(anchor, target));
       }
     }
 
@@ -310,7 +309,17 @@ var PinkCords = (function() {
   };
 
   Graph.onMouseDown = function(event) {
-    this.dragging = this.findAnchorUnderMouse(event);
+    var pos = mousePos(event);
+    var target = this.findAnchorAt(pos)
+    if (!target) {
+      // create two anchors and drag one of them.
+      var source = new Anchor(pos);
+      target = new Anchor(pos);
+      this.anchors.push(source);
+      this.anchors.push(target);
+      this.cords.push(new Cord(source, target));
+    }
+    this.dragging = target;
   };
 
   Graph.animFrame = function(ts) {

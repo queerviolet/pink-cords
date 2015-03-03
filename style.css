@@ -3,7 +3,7 @@ body {
   font-size: 1.3em;
   font-family: 'Open Sans', sans-serif;
   color: #fff;
-  background: url('../images/stardust.png')
+  background: white;
 }
 
 pink-cords {
@@ -11,4 +11,5 @@ pink-cords {
   width: 100%;
   height: 100%;
   top: 0; left: 0;
+  transform: translate(0.5, 0.5);
 }

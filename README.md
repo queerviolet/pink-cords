@@ -1,14 +1,8 @@
-#algoMusic
+# Pink Cords
 
-## The Project
-![](thumbnail.png)
+Pink Cords is a string musical instrument. It's also a song.
 
-algoMusic is a single page app built with JavaScript, D3.js, and Timber.js! Click [algoMusic](https://yamikamisama.github.io/algo_music) to play! 
-* A single click on the page will place a node
-* If you add nodes nearby eachother they will connect.
-* Hover over the line connecting the two to pluck the note
-* Click and drag a circle to make the connection longer/shorter
-* Double Click a circle to set off a chain reaction
+Made with JS, Canvas, and Timber.js.
 
 ##Team Members
 

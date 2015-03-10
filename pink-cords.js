@@ -7,10 +7,12 @@ var PinkCords = (function() {
     source.attach(this);
     target.attach(this);
     this.audioNode = T('pluck');
-    this.audioNode.play();    
+    this.audioNode.play();
     this.id = Cord.nextId++;
     Cord.all[this.id] = this;
     this.lastPluck = Number.MIN_SAFE_INTEGER;
+    this.sampleBuf = null;
+    this.sampleAry = null;
   }
 
   Cord.nextId = 0;
@@ -25,12 +27,22 @@ var PinkCords = (function() {
     var freq = Cord.FREQ_RANGE.at(string.mag / 1000);
     this.audioNode.set({freq: freq});
     this.audioNode.bang();
+    var buf = this.audioNode._.buffer;
+    this.sampleAry = new Float32Array(buf);
   }
 
   // This is ugly. I'm sorry ~ ashi.
   Cord.prototype.otherEndFrom = function(sourceOrTarget) {
     return sourceOrTarget == this.source? this.target : this.source;
   }
+
+  Cord.prototype.replaceAnchor = function(replaceThisAnchor, withThisOne) {
+    if (this.source === replaceThisAnchor) {
+      this.source = withThisOne;
+    } else if (this.target === replaceThisAnchor) {
+      this.target = withThisOne;
+    }
+  };
 
   Cord.range0x00To0xFF = (0xFF).to(0x00).across(-1, 1);
   Cord.pluckDuration = 100;
@@ -39,14 +51,19 @@ var PinkCords = (function() {
 
   Cord.prototype.draw = function(ctx, ts) {
     ctx.lineWidth = 2;
-    if (this.audioNode._.buffer) {
+    // TODO: This check is bad and I  feel bad, but Safari
+    //       stutters like hell using the audio buffer rendering.
+    //       Improving vector performance using glmatrix and trying
+    //       again. <3 ashi
+    if (window.chrome && this.sampleAry) {
       var lin = this.source.pos.to(this.target.pos);
       var norm = lin.range.rot2d(Math.PI / 2.0).unit;
-      var buf = this.audioNode._.buffer;
+      var buf = this.sampleAry;
+      buf.set(this.audioNode._.buffer);
       var len = buf.length;
       var point = lin.at(1.0);
       var i = len; while (--i >= 0) {
-        var t = this.audioNode._.buffer[i];        
+        var t = buf[i];        
         ctx.strokeStyle = ci24ToStr(0xff0000 | (Cord.range0x00To0xFF.at(t) << 8) | 0xff);
         ctx.beginPath();
         ctx.moveTo.apply(ctx, point);
@@ -75,10 +92,14 @@ var PinkCords = (function() {
 
   Cord.prototype.toString = function() { return 'Cord_' + this.id; }
 
+  Cord.prototype.destroy = function() {
+    this.audioNode.pause();
+  };
+
   function Anchor(pos) {
     this.pos = pos;
     this.cords = [];
-    this.id = Anchor.nextId++;    
+    this.id = Anchor.nextId++;
   }
 
   Anchor.nextId = 0;
@@ -109,10 +130,32 @@ var PinkCords = (function() {
     ctx.stroke();
   };
 
+  // Utterly consume another anchor.
+  // Destroys any cords which were strung between this anchor and
+  // the other one.
+  // Returns an array of cords which were destroyed.
+  Anchor.prototype.consume = function(otherAnchor) {
+    var cords = [];
+    var deadCords = [];
+    var i = otherAnchor.cords.length; while (--i >= 0) {
+      var cord = otherAnchor.cords[i];
+      if (cord.otherEndFrom(otherAnchor) === this) {
+        cord.destroy();
+        deadCords.push(cord);
+      } else {
+        cords.push(cord);
+        cord.replaceAnchor(otherAnchor, this);
+      }
+    }
+    this.cords = this.cords.concat(cords)
+    return deadCords;
+  };
+
   Anchor.prototype.toString = function() { return 'Anchor_' + this.id; };
 
   Anchor.prototype.strumBfs = function(duration) {
     var visited = {};
+    var strummed = {};
     var queue = [this];
     while (queue.length > 0) {
       var next = queue.shift();
@@ -120,7 +163,10 @@ var PinkCords = (function() {
       var i = next.cords.length; while(--i >= 0) {
         var cord = next.cords[i];
         var other = cord.otherEndFrom(next);
-        strum.push(cord);
+        if (!strummed[cord.id]) {
+          strum.push(cord);
+          strummed[cord.id] = true;
+        }
         if (!visited[other.id]) {
           queue.push(other);
           visited[other.id] = true;
@@ -209,11 +255,11 @@ var PinkCords = (function() {
   var Graph = Object.create(HTMLElement.prototype);
 
   Graph.createdCallback = function() {
-    var root = this.createShadowRoot();
-    this.root = root;
+    /*var root = this.createShadowRoot();
+    this.root = root;*/
 
     this.canvas = document.createElement('canvas');
-    root.appendChild(this.canvas);
+    this.appendChild(this.canvas);
     this.ctx = this.canvas.getContext('2d');
 
     this.gun = new Lightgun();
@@ -221,14 +267,18 @@ var PinkCords = (function() {
 
     this.anchors = [];
     this.cords = [];
+    this.transient = {
+      anchors: [],  // indices into this.anchors
+      cords: [],    // indices into this.cords
+    };
 
     this.strumBoxes = [];
     this.dragging = null;
+    this.dragDidOccur = false;
     this.running = false;
 
     // Bound instance methods
     this.animFrame = this.animFrame.bind(this);
-    this.onClick = this.onClick.bind(this);
     this.onDblClick = this.onDblClick.bind(this);
     this.onMouseMove = this.onMouseMove.bind(this);
     this.onMouseDown = this.onMouseDown.bind(this);
@@ -239,7 +289,6 @@ var PinkCords = (function() {
     this.running = true;
     window.requestAnimationFrame(this.animFrame);
 
-    this.addEventListener('click', this.onClick);
     this.addEventListener('dblclick', this.onDblClick);
     this.addEventListener('mousemove', this.onMouseMove);
     this.addEventListener('mousedown', this.onMouseDown);
@@ -248,7 +297,6 @@ var PinkCords = (function() {
 
   Graph.detachedCallback = function() {
     this.running = false;
-    this.removeEventListener('click', this.onClick);
     this.removeEventListener('dblclick', this.onDblClick);
     this.removeEventListener('mousemove', this.onMouseMove);
     this.removeEventListener('mousedown', this.onMouseDown);
@@ -259,52 +307,80 @@ var PinkCords = (function() {
     return [event.offsetX, event.offsetY];
   }
 
-  Graph.findAnchorAt = function(mouse) {
+  Graph.findAnchorAt = function(mouse, opts) {
+    opts = opts || {};
     var i = this.anchors.length; while (--i >= 0) {
-      if (this.anchors[i].pos.sub(mouse).magSquared <= 25) {
+      if (this.anchors[i].pos.sub(mouse).magSquared <= 25 &&
+          this.anchors[i] !== opts.ignore) {
         return this.anchors[i];
       }
     }    
   };
 
-  Graph.onClick = function(event) {
-    var pos = mousePos(event);
-    if (this.findAnchorAt(pos)) { return; }
-
-    var anchor = new Anchor(pos);
-
-    var i = this.anchors.length; while (--i >= 0) {
-      var target = this.anchors[i];
-      if (target.pos.sub(pos).magSquared <= 4000) {
-        this.cords.push(new Cord(anchor, target));
-      }
-    }
-
-    this.anchors.push(anchor);
-  };
-
   Graph.onDblClick = function(event) {
-    var anchor = this.findAnchorUnderMouse(event);
+    var anchor = this.findAnchorAt(mousePos(event));
     if (anchor) {
       anchor.strumBfs();
     }
   };
 
+  var prevEvent;
   Graph.onMouseMove = function(event) {
     if (this.dragging) {
       this.dragging.pos = [event.offsetX, event.offsetY];
+      this.dragDidOccur = true;
     } else {
+      prevEvent = prevEvent || event;
+      var movementX = event.movementX || (event.offsetX - prevEvent.offsetX);
+      var movementY = event.movementY || (event.offsetY - prevEvent.offsetY);
       var x1 = event.offsetX, y1 = event.offsetY,
-        x2 = x1 - event.movementX, y2 = y1 - event.movementY,
+        x2 = x1 - movementX, y2 = y1 - movementY,
         xMin = Math.min(x1, x2), yMin = Math.min(y1, y2),
         xMax = Math.max(x1, x2), yMax = Math.max(y1, y2),
         w = Math.max(3, xMax - xMin), h = Math.max(3, yMax - yMin);
-
+      prevEvent = event;
       this.strumBoxes.push([xMin, yMin, w, h]);
     }
   };
 
+  Graph.clearTransients = function() {
+    var i = this.transient.anchors.length; while (--i >= 0) {
+      this.anchors.splice(this.transient.anchors[i], 1);
+    };
+    var i = this.transient.cords.length; while (--i >= 0) {
+      this.cords.splice(this.transient.cords[i], 1);
+    };
+    this.affixTransients();
+  };
+
+  Graph.affixTransients = function() {
+    this.transient.anchors = [];
+    this.transient.cords = [];
+  };
+
   Graph.onMouseUp = function(event) {
+    if (this.dragging && !this.dragDidOccur && this.transient.anchors.length > 0) {
+      // Started a drag but never actually dragged, so delete the transients
+      // and bail.
+      this.clearTransients();
+      this.dragging = null;
+      return;
+    }
+    if (this.dragging) {
+      var pos = mousePos(event);
+      this.affixTransients();
+
+      var existingAnchor = this.findAnchorAt(pos, {ignore: this.dragging});
+      if (existingAnchor) {
+        var deadCords = existingAnchor.consume(this.dragging);
+        this.anchors.splice(this.anchors.indexOf(this.dragging), 1);
+        // eww, this is really inefficient.
+        var i = deadCords.length; while (--i >= 0) {
+          var idx = this.cords.indexOf(deadCords[i]);
+          this.cords.splice(idx, 1);
+        }
+      }
+    }
     this.dragging = null;
   };
 
@@ -315,9 +391,9 @@ var PinkCords = (function() {
       // create two anchors and drag one of them.
       var source = new Anchor(pos);
       target = new Anchor(pos);
-      this.anchors.push(source);
-      this.anchors.push(target);
-      this.cords.push(new Cord(source, target));
+      this.transient.anchors.push(this.anchors.push(source) - 1);
+      this.transient.anchors.push(this.anchors.push(target) - 1);
+      this.transient.cords.push(this.cords.push(new Cord(source, target)) - 1);
     }
     this.dragging = target;
   };

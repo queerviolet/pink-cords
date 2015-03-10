@@ -11,7 +11,6 @@ var PinkCords = (function() {
     this.id = Cord.nextId++;
     Cord.all[this.id] = this;
     this.lastPluck = Number.MIN_SAFE_INTEGER;
-    this.sampleBuf = null;
     this.sampleAry = null;
   }
 
@@ -49,28 +48,34 @@ var PinkCords = (function() {
   Cord.resonantDuration = 10000;
   Cord.totalDuration = Cord.pluckDuration + Cord.resonantDuration;
 
+  var range = vec2.create();
+  var norm = vec2.create();
+  var pt = vec2.create();
+  var rot90 = mat2d.create(); mat2d.rotate(rot90, rot90, Math.PI / 2.0);
   Cord.prototype.draw = function(ctx, ts) {
     ctx.lineWidth = 2;
-    // TODO: This check is bad and I  feel bad, but Safari
-    //       stutters like hell using the audio buffer rendering.
-    //       Improving vector performance using glmatrix and trying
-    //       again. <3 ashi
-    if (window.chrome && this.sampleAry) {
-      var lin = this.source.pos.to(this.target.pos);
-      var norm = lin.range.rot2d(Math.PI / 2.0).unit;
+    var from = this.target.pos;
+    var to = this.source.pos;
+    vec2.sub(range, this.target.pos, this.source.pos);
+    var mag = vec2.len(range);
+    vec2.scale(norm, range, 1.0 / mag)
+    vec2.transformMat2d(norm, norm, rot90);
+    if (this.sampleAry) {
       var buf = this.sampleAry;
       buf.set(this.audioNode._.buffer);
       var len = buf.length;
-      var point = lin.at(1.0);
+      vec2.lerp(pt, from, to, 1.0);
+      ctx.strokeStyle = 'fuchsia';
+      ctx.beginPath();      
+      ctx.moveTo(pt[0], pt[1]);
       var i = len; while (--i >= 0) {
-        var t = buf[i];        
-        ctx.strokeStyle = ci24ToStr(0xff0000 | (Cord.range0x00To0xFF.at(t) << 8) | 0xff);
-        ctx.beginPath();
-        ctx.moveTo.apply(ctx, point);
-        point = lin.at(i / len).add(norm.dotMul(t * 10.0));
-        ctx.lineTo.apply(ctx, point);
-        ctx.stroke();
+        var sample = buf[i];
+        //ctx.strokeStyle = 'fuchsia'; //ci24ToStr(0xff0000 | (Cord.range0x00To0xFF.at(sample) << 8) | 0xff);
+        vec2.lerp(pt, from, to, i / len);
+        vec2.scaleAndAdd(pt, pt, norm, sample * 10.0);
+        ctx.lineTo(pt[0], pt[1]);
       }
+      ctx.stroke();      
     } else {
       ctx.strokeStyle = '#999';
       ctx.beginPath(); 

@@ -390,6 +390,9 @@ var PinkCords = (function() {
   };
 
   Graph.onMouseDown = function(event) {
+    const [ctx] = window.__audioContext
+    if (!ctx) return
+    if (ctx.state === 'suspended') ctx.resume()
     var pos = mousePos(event);
     var target = this.findAnchorAt(pos)
     if (!target) {
